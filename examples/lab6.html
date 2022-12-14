@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - FBX loader</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="main.css">
+	</head>
+
+	<body>
+		<div id="info">
+			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - FBXLoader<br />
+			Character and animation from <a href="https://www.mixamo.com/" target="_blank" rel="noopener">Mixamo</a>
+		</div>
+
+		<script type="module">
+
+			import * as THREE from '../build/three.module.js';
+
+			import Stats from './jsm/libs/stats.module.js';
+
+			import { OrbitControls } from './jsm/controls/OrbitControls.js';
+			import { FBXLoader } from './jsm/loaders/FBXLoader.js';
+
+			var container, stats, controls;
+			var camera, scene, renderer, light;
+
+			var clock = new THREE.Clock();
+
+			let mixers = [];
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+				camera.position.set( 50, 300, 600 );
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x000000 );
+				// scene.fog = new THREE.Fog( 0xa0a0a0, 500, 2000 );
+
+				/**/
+
+
+				// scene.add( new CameraHelper( light.shadow.camera ) );
+
+				// ground
+				/*var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+				mesh.rotation.x = - Math.PI / 2;
+				mesh.receiveShadow = true;
+				scene.add( mesh );
+
+				var grid = new THREE.GridHelper( 2000, 20, 0x000000, 0x000000 );
+				grid.material.opacity = 0.2;
+				grid.material.transparent = true;
+				scene.add( grid );*/
+
+				// dance floor
+				let z_fighting_offset = .02;
+				let texture = new THREE.TextureLoader().load( 'textures/red_carpet.jpg' );
+				texture.wrapS = texture.wrapT = THREE.RepeatWrapping; 
+				texture.repeat.set( 3, 3 );
+				let material = new THREE.MeshPhongMaterial( { map: texture, side:THREE.BackSide } );
+				const danceFloor = new THREE.Mesh( new THREE.CircleGeometry( 151, 128 ), material );
+				danceFloor.position.y = 91;
+				danceFloor.rotation.x = Math.PI / 2;
+				danceFloor.receiveShadow = true;
+				scene.add( danceFloor );
+
+				texture = new THREE.TextureLoader().load( 'textures/wood2.jpg' );
+				texture.wrapS = texture.wrapT = THREE.RepeatWrapping; 
+				texture.repeat.set( 12, 0.7 );
+				material = new THREE.MeshStandardMaterial( { map: texture, side:THREE.FrontSide } );
+				const danceFloorWall = new THREE.Mesh( new THREE.CylinderGeometry( 155, 155, 90, 128 ), material );
+				danceFloorWall.position.y = 45 - z_fighting_offset;
+				danceFloorWall.receiveShadow = true;
+				danceFloorWall.castShadow = true;
+				scene.add( danceFloorWall );
+
+				material = new THREE.MeshStandardMaterial({
+					color: 0x908434, 
+					metalness: 0.8,
+					roughness: 0.3,
+					opacity: 1,
+					transparent: false,
+					side:THREE.FrontSide 
+				});
+				/*const danceFloorWallCorner = new THREE.Mesh(
+					new THREE.TubeGeometry( 
+						THREE.LineCurve3( new THREE.Vector2(0, 0, 0), new THREE.Vector2(0, 4, 0) ), 
+						155 + z_fighting_offset, 2, 8, false ),
+					material
+				);*/
+				const danceFloorWallCorner = new THREE.Mesh( 
+					new THREE.CylinderGeometry( 155 + z_fighting_offset, 155 + z_fighting_offset, 4, 128 ), 
+					material 
+				);
+				danceFloorWallCorner.position.y = 90 - 2 - z_fighting_offset;
+				danceFloorWallCorner.receiveShadow = true;
+				scene.add( danceFloorWallCorner );
+
+				const danceFloorFloorCorner = new THREE.Mesh( 
+					new THREE.RingGeometry( 155.02 - 4, 155 + z_fighting_offset, 128 ), 
+					material 
+				);
+				danceFloorFloorCorner.position.y = 90 + z_fighting_offset;
+				danceFloorFloorCorner.receiveShadow = true;
+				danceFloorFloorCorner.rotation.x = - Math.PI / 2;
+				scene.add( danceFloorFloorCorner );
+
+				// main floor
+				texture = new THREE.TextureLoader().load( 'textures/stone_tiles.jpg' );
+				texture.wrapS = texture.wrapT = THREE.RepeatWrapping; 
+				texture.repeat.set( 13, 13 );
+				material = new THREE.MeshStandardMaterial({
+					map: texture,
+					metalness: 0.3,
+					roughness: 0.4,
+					opacity: 1,
+					transparent: false,
+					side:THREE.FrontSide 
+				});
+				const floor = new THREE.Mesh( new THREE.CircleGeometry( 1000, 128 ), material );
+				floor.rotation.x = - Math.PI / 2;
+				floor.receiveShadow = true;
+				scene.add( floor );
+
+
+				// models ------------------------------------------------------------------------
+				const addModel = (path, x = 0, y = 0, z = 0, xr = 0, yr = 0, zr = 0) => {
+					let loader = new FBXLoader();
+					loader.load( path, function ( object ) {
+						let mixer = new THREE.AnimationMixer( object );
+						mixers.push(mixer);
+						let action = mixer.clipAction( object.animations[ 0 ] );
+						action.play();
+						object.traverse( function ( child ) {
+							if ( child.isMesh ) {
+								child.castShadow = true;
+								child.receiveShadow = true;
+							}
+						} );
+						object.position.set(x, y, z);
+						object.rotation.set(xr, yr, zr);
+						scene.add( object );
+					} );
+				};
+
+				addModel('models/fbx/Gangnam Style Josh.fbx', 0, 92);
+				addModel('models/fbx/Happy Cath.fbx', 240, 0, 120, 0, - Math.PI * 0.55 );
+				addModel('models/fbx/Rocking Mike.fbx', 270, 0, -170, 0, - Math.PI * 0.4 );
+				addModel('models/fbx/Cheering Jason.fbx', -130, 0, 170, 0, Math.PI * 0.9 );
+
+				//lights
+				const spotLight = new THREE.SpotLight( 0xffffff, 2.5, 1200, 0.6, 1, 1 );
+				spotLight.position.set( 0, 600, 200 );
+				spotLight.castShadow = true;
+				//spotLight.shadow.mapSize.width = 1024;
+				//spotLight.shadow.mapSize.height = 1024;
+				//spotLight.shadow.camera.near = 700;
+				//spotLight.shadow.camera.far = 2500;
+				spotLight.lookAt(danceFloor);
+				scene.add( spotLight );
+
+				/*const spotLight2 = spotLight.clone();
+				spotLight2.position.set( -300, 600, -60 );
+				scene.add (spotLight2);*/
+
+				light = new THREE.HemisphereLight( 0xffffff, 0x444444, 0.2 );
+				light.castShadow = true;
+				light.position.set( 0, 1000, 0 );
+				scene.add( light );
+
+				/*light = new THREE.DirectionalLight( 0xffffff );
+				light.position.set( 0, 200, 50 );
+				light.castShadow = true;
+				light.shadow.camera.top = 180;
+				light.shadow.camera.bottom = - 200;
+				light.shadow.camera.left = - 300;
+				light.shadow.camera.right = 300;
+				scene.add( light );*/
+
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				controls = new OrbitControls( camera, renderer.domElement );
+				controls.target.set( 0, 100, 0 );
+				controls.update();
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+				// stats
+				stats = new Stats();
+				container.appendChild( stats.dom );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				var delta = clock.getDelta();
+
+				mixers.forEach(m => m.update( delta ));
+
+				renderer.render( scene, camera );
+
+				stats.update();
+
+			}
+
+		</script>
+
+	</body>
+</html>
